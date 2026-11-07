@@ -1,0 +1,252 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "mysql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  VETERINARIAN
+  RECEPTIONIST
+}
+
+enum PetSex {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum WorkShift {
+  MORNING
+  AFTERNOON
+}
+
+model User {
+  id                       String         @id @default(cuid()) @db.VarChar(30)
+  name                     String         @db.VarChar(120)
+  email                    String         @unique @db.VarChar(191)
+  passwordHash             String         @db.VarChar(255)
+  role                     UserRole       @default(RECEPTIONIST)
+  isActive                 Boolean        @default(true)
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+  authSessions             AuthSession[]
+  consultationsAuthored    Consultation[] @relation("ConsultationAuthor")
+  vaccinesAdministered     Vaccine[]      @relation("VaccineAdministrator")
+  treatmentsAssigned       Treatment[]    @relation("TreatmentAuthor")
+  appointmentsAsVeterinary Appointment[]  @relation("AppointmentVeterinarian")
+  appointmentsCreated      Appointment[]  @relation("AppointmentCreator")
+  prescriptionsCreated     Prescription[] @relation("PrescriptionAuthor")
+  euthanasiaAuthorizations EuthanasiaAuthorization[] @relation("EuthanasiaAuthorizationAuthor")
+  clinicalAnalysisDocuments ClinicalAnalysisDocument[] @relation("ClinicalAnalysisDocumentAuthor")
+
+  @@index([role, isActive])
+}
+
+model AuthSession {
+  id        String   @id @db.VarChar(36)
+  userId    String   @db.VarChar(30)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Owner {
+  id           String        @id @default(cuid()) @db.VarChar(30)
+  firstName    String        @db.VarChar(100)
+  lastName     String        @db.VarChar(100)
+  email        String?       @db.VarChar(191)
+  phone        String        @db.VarChar(30)
+  address      String?       @db.VarChar(255)
+  notes        String?       @db.Text
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  pets         Pet[]
+  appointments Appointment[]
+  prescriptions Prescription[]
+  euthanasiaAuthorizations EuthanasiaAuthorization[]
+  clinicalAnalysisDocuments ClinicalAnalysisDocument[]
+
+  @@index([lastName, firstName])
+  @@index([phone])
+}
+
+model Pet {
+  id            String         @id @default(cuid()) @db.VarChar(30)
+  ownerId       String         @db.VarChar(30)
+  name          String         @db.VarChar(100)
+  species       String         @db.VarChar(80)
+  breed         String?        @db.VarChar(100)
+  sex           PetSex         @default(UNKNOWN)
+  birthDate     DateTime?      @db.Date
+  color         String?        @db.VarChar(80)
+  weightKg      Decimal?       @db.Decimal(7, 2)
+  microchip     String?        @unique @db.VarChar(80)
+  photoPath     String?        @db.VarChar(500)
+  medicalNotes  String?        @db.Text
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  owner         Owner          @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  consultations Consultation[]
+  vaccines      Vaccine[]
+  treatments    Treatment[]
+  appointments  Appointment[]
+  prescriptions Prescription[]
+  euthanasiaAuthorizations EuthanasiaAuthorization[]
+  clinicalAnalysisDocuments ClinicalAnalysisDocument[]
+
+  @@index([ownerId, name])
+  @@index([species, name])
+}
+
+model Consultation {
+  id          String   @id @default(cuid()) @db.VarChar(30)
+  petId       String   @db.VarChar(30)
+  authorId    String   @db.VarChar(30)
+  occurredAt  DateTime @default(now())
+  shift       WorkShift?
+  reason      String   @db.VarChar(255)
+  diagnosis   String?  @db.Text
+  notes       String?  @db.Text
+  weightKg    Decimal? @db.Decimal(7, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  pet         Pet      @relation(fields: [petId], references: [id], onDelete: Restrict)
+  author      User     @relation("ConsultationAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  prescription Prescription?
+
+  @@index([petId, occurredAt])
+  @@index([authorId, occurredAt])
+  @@index([shift, occurredAt])
+}
+
+model Vaccine {
+  id              String   @id @default(cuid()) @db.VarChar(30)
+  petId           String   @db.VarChar(30)
+  administratorId String   @db.VarChar(30)
+  name            String   @db.VarChar(120)
+  administeredAt  DateTime
+  shift           WorkShift?
+  nextDueAt       DateTime?
+  batchNumber     String?  @db.VarChar(100)
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  pet             Pet      @relation(fields: [petId], references: [id], onDelete: Restrict)
+  administrator   User     @relation("VaccineAdministrator", fields: [administratorId], references: [id], onDelete: Restrict)
+
+  @@index([petId, administeredAt])
+  @@index([nextDueAt])
+  @@index([shift, administeredAt])
+}
+
+model Treatment {
+  id          String    @id @default(cuid()) @db.VarChar(30)
+  petId       String    @db.VarChar(30)
+  authorId    String    @db.VarChar(30)
+  name        String    @db.VarChar(150)
+  dosage      String?   @db.VarChar(150)
+  instructions String?  @db.Text
+  startsAt    DateTime
+  shift       WorkShift?
+  endsAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  pet         Pet       @relation(fields: [petId], references: [id], onDelete: Restrict)
+  author      User      @relation("TreatmentAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([petId, startsAt])
+  @@index([endsAt])
+  @@index([shift, startsAt])
+}
+
+model Prescription {
+  id             String       @id @default(cuid()) @db.VarChar(30)
+  consultationId String       @unique @db.VarChar(30)
+  petId          String       @db.VarChar(30)
+  ownerId        String       @db.VarChar(30)
+  authorId       String       @db.VarChar(30)
+  data           Json
+  generatedAt    DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Restrict)
+  pet            Pet          @relation(fields: [petId], references: [id], onDelete: Restrict)
+  owner          Owner        @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  author         User         @relation("PrescriptionAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([petId, generatedAt])
+  @@index([ownerId, generatedAt])
+  @@index([authorId, generatedAt])
+}
+
+model EuthanasiaAuthorization {
+  id          String   @id @default(cuid()) @db.VarChar(30)
+  petId       String   @db.VarChar(30)
+  ownerId     String   @db.VarChar(30)
+  authorId    String   @db.VarChar(30)
+  data        Json
+  generatedAt DateTime @default(now())
+  pet         Pet      @relation(fields: [petId], references: [id], onDelete: Restrict)
+  owner       Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  author      User     @relation("EuthanasiaAuthorizationAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([petId, generatedAt])
+  @@index([ownerId, generatedAt])
+  @@index([authorId, generatedAt])
+}
+
+model ClinicalAnalysisDocument {
+  id          String   @id @default(cuid()) @db.VarChar(30)
+  petId       String   @db.VarChar(30)
+  ownerId     String   @db.VarChar(30)
+  authorId    String   @db.VarChar(30)
+  data        Json
+  generatedAt DateTime @default(now())
+  pet         Pet      @relation(fields: [petId], references: [id], onDelete: Restrict)
+  owner       Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  author      User     @relation("ClinicalAnalysisDocumentAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([petId, generatedAt])
+  @@index([ownerId, generatedAt])
+  @@index([authorId, generatedAt])
+}
+
+model Appointment {
+  id             String            @id @default(cuid()) @db.VarChar(30)
+  ownerId        String            @db.VarChar(30)
+  petId          String?           @db.VarChar(30)
+  veterinarianId String?           @db.VarChar(30)
+  createdById    String            @db.VarChar(30)
+  startsAt       DateTime
+  endsAt         DateTime
+  shift          WorkShift?
+  reason         String            @db.VarChar(255)
+  status         AppointmentStatus @default(SCHEDULED)
+  notes          String?           @db.Text
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  owner          Owner             @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  pet            Pet?              @relation(fields: [petId], references: [id], onDelete: Restrict)
+  veterinarian   User?             @relation("AppointmentVeterinarian", fields: [veterinarianId], references: [id], onDelete: Restrict)
+  createdBy      User              @relation("AppointmentCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([startsAt, status])
+  @@index([shift, startsAt])
+  @@index([ownerId, startsAt])
+  @@index([petId, startsAt])
+  @@index([veterinarianId, startsAt])
+}

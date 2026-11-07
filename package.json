@@ -1,0 +1,19 @@
+{
+  "name": "clinica-veterinaria-ayala",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=@ayala/api",
+    "dev:web": "npm run dev --workspace=@ayala/web",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:generate": "npm run db:generate --workspace=@ayala/api",
+    "db:validate": "npm run db:validate --workspace=@ayala/api",
+    "db:migrate": "npm run db:migrate --workspace=@ayala/api",
+    "db:seed": "npm run db:seed --workspace=@ayala/api"
+  }
+}
